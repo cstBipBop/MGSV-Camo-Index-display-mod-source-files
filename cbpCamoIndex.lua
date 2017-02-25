@@ -4,6 +4,7 @@ local e={}
 local G={
 	tpp=Tpp,
 	dmg=TppDamage,
+	mis=TppMission,
 	def=TppDefine,
 	eqp=TppEquip,
 	ene=TppEnemy,
@@ -84,9 +85,9 @@ e.define={
 		sCamo={
 			all={G.eqp.EQP_IT_InstantStealth,G.eqp.EQP_IT_Stealth,G.eqp.EQP_IT_ParasiteCamouf},
 			subtype={
-				limited=G.eqp.EQP_IT_InstantStealth,
-				battery=G.eqp.EQP_IT_Stealth,
-				parasite=G.eqp.EQP_IT_ParasiteCamouf
+				limited={G.eqp.EQP_IT_InstantStealth},
+				battery={G.eqp.EQP_IT_Stealth},
+				parasite={G.eqp.EQP_IT_ParasiteCamouf}
 			}
 		}
 	},
@@ -209,6 +210,130 @@ if not e.var then
 	}
 end
 
+e.debug={}
+e.debugTable={
+	playerStatus={
+		'STAND',--standing; false if HORSE_STAND; true when ON_VEHICLE
+		'SQUAT',--crouching or doing cbox slide
+		'CRAWL',--prone or when CBOX_EVADE
+		'NORMAL_ACTION',--true for most generic on-foot movement-related actions including STOP; false when ON_VEHICLE or ON_HORSE or CBOX
+		'PARALLEL_MOVE',--aiming
+		'IDLE',
+		'GUN_FIRE',--true even with suppressor; GUN_FIRE and GUN_FIRE_SUPPRESSOR not true with player vehicle weapons
+		'GUN_FIRE_SUPPRESSOR',--true when discharge with suppressor; GUN_FIRE also true when this
+		'STOP',--when idle on foot or cbox; true when CBOX_EVADE; always true if ON_VEHICLE; 
+		'WALK',--slow speed
+		'RUN',--default speed
+		'DASH',--fast speed
+		'ON_HORSE',--piloting D-Horse
+		'ON_VEHICLE',--piloting vehicle
+		'ON_HELICOPTER',--riding helicopter
+		'HORSE_STAND',--
+		'HORSE_HIDE_R',--hiding on right side of horse
+		'HORSE_HIDE_L',--hiding on left side of horse
+		'HORSE_IDLE',--HORSE_[speed] also used for D-Walker
+		'HORSE_TROT',--slow speed
+		'HORSE_CANTER',--default speed
+		'HORSE_GALLOP',--fast speed
+		'BINOCLE',--using int-scope
+		'SUBJECT',--first-person camera
+		'INTRUDE',
+		'LFET_STOCK',
+		'CUTIN',--placing guard in something (probably dev typo for PUT_IN)
+		'DEAD',
+		'DEAD_FRESH',
+		'NEAR_DEATH',
+		'NEAR_DEAD',
+		'FALL',
+		'CBOX',--true while in cbox and not sliding and not CBOX_EVADE
+		'CBOX_EVADE',--crawling out of cbox; CBOX false if true
+		'TRASH_BOX',
+		'TRASH_BOX_HALF_OPEN',
+		'INJURY_LOWER',
+		'INJURY_UPPER',
+		'CURE',
+		'CQC_CONTINUOUS',
+		'BEHIND',--pressed against cover/wall
+		'ENABLE_TARGET_MARKER_CHECK',
+		'UNCONSCIOUS',
+		'PARTS_ACTIVE',--seems to always be true when deployed or in ACC
+		'CARRY',
+		'CURTAIN',
+		'VOLGIN_CHASE'
+	},
+	buttons={
+		'DECIDE',
+		'STANCE',
+		'DASH',
+		'HOLD',
+		'FIRE',
+		'RIDE_ON',
+		'RIDE_OFF',
+		'ACTION',
+		'MOVE_ACTION',
+		'JUMP',
+		'RELOAD',
+		'STOCK',
+		'ZOOM_CHANGE',
+		'VEHICLE_CHANGE_SIGHT',
+		'MB_DEVICE',
+		'CALL',
+		'INTERROGATE',
+		'SUBJECT',
+		'UP',
+		'PRIMARY_WEAPON',
+		'DOWN',
+		'SECONDARY_WEAPON',
+		'LEFT',
+		'RIGHT',
+		'VEHICLE_LIGHT_SWITCH',
+		'VEHICLE_TOGGLE_WEAPON',
+		'CQC',
+		'SIDE_ROLL',
+		'LIGHT_SWITCH',
+		'EVADE',
+		'VEHICLE_FIRE',
+		'VEHICLE_CALL',
+		'VEHICLE_DASH',
+		'BUTTON_PLACE_MARKER',
+		'PLACE_MARKER',
+		'ESCAPE'
+	}
+}
+
+function e.debug:buttonsOrStatus(check)
+	if not self or not check then return end
+	local t={}
+	check=((check=='buttons' and e.playerPressed) or (check=='status' and e.playerStatus) or false)
+	if not check then return end
+	for i=1,#self do
+		t[self[i]]=check(self[i])
+	end
+	self,check=nil
+	local tostring=tostring
+	for k,v in pairs(t) do
+		if v then
+			F.echo(k..'='..tostring(v))
+		end
+	end
+	return
+end
+
+function e.debug:updateVars()
+	if not self or #self<2 then return end
+	for i=1,(#self-1) do
+		F.echo(self[i])
+	end
+end
+
+function e.debug:multiEcho()
+	local a=F.echo
+	local ts=tostring
+	for i=1,#self do
+		a(ts(self[i]))
+	end
+end
+
 --###############Coroutines#############
 
 function e:createRoutine(key)
@@ -248,6 +373,7 @@ function e.changeState(key,flag)--item,flag
 		if e.var.keepTime[key] then
 			e.var.exception.itemCancel=true
 			coroutine.resume(e.var.keepTime[key])
+			e.var.exception.itemCancel=false
 		end
 		e.var.keepTime[key]=false
 		e.var.flags.state[key]=l.flagType.disabled
@@ -286,10 +412,12 @@ end
 function e.getItemType(item)
 	local def=e.define.eqp
 	local t={false,false}
+	F.echo('item:'..tostring(item))
 
-	local assignSubType=function(subTable,newType)
+	local assignSubType=function(subTable)
 		for k,_ in pairs(subTable) do
 			for i=1,#subTable[k] do
+				F.echo(tostring(subTable[k][i]))
 				if (item==subTable[k][i]) then
 					return k
 				end
@@ -302,7 +430,9 @@ function e.getItemType(item)
 		for i=1,#itemTable do
 			if item==itemTable[i] then
 				t[1]=newType
-				t[2]=assignSubType(subTable,newType)
+				F.echo(item..'=='..itemTable[i])
+				F.echo('t[1]='..tostring(t[1]))
+				t[2]=assignSubType(subTable)
 				return
 			end
 		end
@@ -313,7 +443,6 @@ function e.getItemType(item)
 	F.echo(tostring(t[1]))
 	F.echo(tostring(t[2]))
 	if not t[1] then
-		F.echo('t[1] false')
 		t={false,false}--for some reason second arg kept returning nil instead of false when doing multi one-liner conditional var assignment in single func; lazy workaround
 		checkMatch(def.cbox.all,def.cbox.subtype.camo,'cbox')
 	end
@@ -323,9 +452,8 @@ function e.getItemType(item)
 	return t[1],t[2]
 end
 
-
 function e.Messages()
-	return Tpp.StrCode32Table{--{msg='',func=e.On},	{msg='',func=function()F.echo('')end},
+	return G.tpp.StrCode32Table{--{msg='',func=e.On},	{msg='',func=function()F.echo('')end},
 	    Player={
 			{msg='PlayerDamaged',func=e.OnPlayerDamaged},--function(playerIndex,attackId,attackerId)
 			{msg='OnPlayerMachineGun',func=function()e.var.ride='gimmickMG'end},
@@ -371,15 +499,15 @@ function e.Messages()
 end
 
 function e.Init(missionTable)--arg0=missionTable
-  e.messageExecTable=Tpp.MakeMessageExecTable(e.Messages())
+  e.messageExecTable=G.tpp.MakeMessageExecTable(e.Messages())
 end
 
 function e.OnReload(missionTable)--arg0=missionTable
-  e.messageExecTable=Tpp.MakeMessageExecTable(e.Messages())
+  e.messageExecTable=G.tpp.MakeMessageExecTable(e.Messages())
 end
 
 function e.OnMessage(sender,messageId,arg0,arg1,arg2,arg3,strLogText)
-  Tpp.DoMessage(e.messageExecTable,TppMission.CheckMessageOption,sender,messageId,arg0,arg1,arg2,arg3,strLogText)
+  G.tpp.DoMessage(e.messageExecTable,G.mis.CheckMessageOption,sender,messageId,arg0,arg1,arg2,arg3,strLogText)
 end
 
 function e.OnPlayerDamaged(_,attackId)--arg0=playerIndex | arg2=attackerId
@@ -401,8 +529,6 @@ end
 
 function e.OnCarried(gameObjectId,carriedState)--arg1=0 based flag to 2
 	local l={obj=G.gameObj_tpp,ene=G.ene}
-	--local TppGameObject=TppGameObject
-	--local TppEnemy=TppEnemy
 	local t={true,false,true}
 	e.var.ride=((((G.gameObj_v.GetTypeIndex(gameObjectId)==l.obj.GAME_OBJECT_TYPE_SOLDIER2) and t[carriedState+1]) and (l.ene.GetLifeStatus(gameObjectId)~=l.ene.LIFE_STATUS.DEAD) and 'carry') or false)
 end
@@ -433,6 +559,7 @@ function e.OnEquipItem()--nET
 		e.var.cboxCamo=false
 	end
 	local eqpType,eqpSubtype=e.getItemType(vars.items[vars.currentItemIndex])
+	e.debug.multiEcho({'eqpType',eqpType,'eqpSubtype',eqpSubtype})
 	local key
 	--[[local slot={
 		[0]=0,--right
@@ -891,130 +1018,6 @@ e.parts={
 	distanceForSeCallOfPassingObjectsOnHorse
 ]]
 
-e.debug={}
-e.debugTable={
-	playerStatus={
-		'STAND',--standing; false if HORSE_STAND; true when ON_VEHICLE
-		'SQUAT',--crouching or doing cbox slide
-		'CRAWL',--prone or when CBOX_EVADE
-		'NORMAL_ACTION',--true for most generic on-foot movement-related actions including STOP; false when ON_VEHICLE or ON_HORSE or CBOX
-		'PARALLEL_MOVE',--aiming
-		'IDLE',
-		'GUN_FIRE',--true even with suppressor; GUN_FIRE and GUN_FIRE_SUPPRESSOR not true with player vehicle weapons
-		'GUN_FIRE_SUPPRESSOR',--true when discharge with suppressor; GUN_FIRE also true when this
-		'STOP',--when idle on foot or cbox; true when CBOX_EVADE; always true if ON_VEHICLE; 
-		'WALK',--slow speed
-		'RUN',--default speed
-		'DASH',--fast speed
-		'ON_HORSE',--piloting D-Horse
-		'ON_VEHICLE',--piloting vehicle
-		'ON_HELICOPTER',--riding helicopter
-		'HORSE_STAND',--
-		'HORSE_HIDE_R',--hiding on right side of horse
-		'HORSE_HIDE_L',--hiding on left side of horse
-		'HORSE_IDLE',--HORSE_[speed] also used for D-Walker
-		'HORSE_TROT',--slow speed
-		'HORSE_CANTER',--default speed
-		'HORSE_GALLOP',--fast speed
-		'BINOCLE',--using int-scope
-		'SUBJECT',--first-person camera
-		'INTRUDE',
-		'LFET_STOCK',
-		'CUTIN',--placing guard in something (probably dev typo for PUT_IN)
-		'DEAD',
-		'DEAD_FRESH',
-		'NEAR_DEATH',
-		'NEAR_DEAD',
-		'FALL',
-		'CBOX',--true while in cbox and not sliding and not CBOX_EVADE
-		'CBOX_EVADE',--crawling out of cbox; CBOX false if true
-		'TRASH_BOX',
-		'TRASH_BOX_HALF_OPEN',
-		'INJURY_LOWER',
-		'INJURY_UPPER',
-		'CURE',
-		'CQC_CONTINUOUS',
-		'BEHIND',--pressed against cover/wall
-		'ENABLE_TARGET_MARKER_CHECK',
-		'UNCONSCIOUS',
-		'PARTS_ACTIVE',--seems to always be true when deployed or in ACC
-		'CARRY',
-		'CURTAIN',
-		'VOLGIN_CHASE'
-	},
-	buttons={
-		'DECIDE',
-		'STANCE',
-		'DASH',
-		'HOLD',
-		'FIRE',
-		'RIDE_ON',
-		'RIDE_OFF',
-		'ACTION',
-		'MOVE_ACTION',
-		'JUMP',
-		'RELOAD',
-		'STOCK',
-		'ZOOM_CHANGE',
-		'VEHICLE_CHANGE_SIGHT',
-		'MB_DEVICE',
-		'CALL',
-		'INTERROGATE',
-		'SUBJECT',
-		'UP',
-		'PRIMARY_WEAPON',
-		'DOWN',
-		'SECONDARY_WEAPON',
-		'LEFT',
-		'RIGHT',
-		'VEHICLE_LIGHT_SWITCH',
-		'VEHICLE_TOGGLE_WEAPON',
-		'CQC',
-		'SIDE_ROLL',
-		'LIGHT_SWITCH',
-		'EVADE',
-		'VEHICLE_FIRE',
-		'VEHICLE_CALL',
-		'VEHICLE_DASH',
-		'BUTTON_PLACE_MARKER',
-		'PLACE_MARKER',
-		'ESCAPE'
-	}
-}
-
-function e.debug:buttonsOrStatus(check)
-	if not self or not check then return end
-	local t={}
-	check=((check=='buttons' and e.playerPressed) or (check=='status' and e.playerStatus) or false)
-	if not check then return end
-	for i=1,#self do
-		t[self[i]]=check(self[i])
-	end
-	self,check=nil
-	local tostring=tostring
-	for k,v in pairs(t) do
-		if v then
-			F.echo(k..'='..tostring(v))
-		end
-	end
-	return
-end
-
-function e.debug:updateVars()
-	if not self or #self<2 then return end
-	for i=1,(#self-1) do
-		F.echo(self[i])
-	end
-end
-
-function e.debug:multiEcho()
-	local a=F.echo
-	local ts=tostring
-	for i=1,#self do
-		a(ts(self[i]))
-	end
-end
-
 function e.checkItem(phase)
 	do
 		local t={'phase',phase,'e.var.stealthCamo',e.var.stealthCamo}
@@ -1073,7 +1076,7 @@ function e.checkParts(part)
 				return e.parts[i],false
 			end
 		end
-	end--minor optimization; doubt it makes much of a difference though.
+	end--minor optimization; doubt it makes much of a difference though; should probably remove it
 end
 
 function e.checkTime(gameTime)
@@ -1233,7 +1236,6 @@ function e:largestCamoBonus(location)
 			n=v
 		end
 	end
-	self=nil
 	return n
 end
 
@@ -1251,7 +1253,6 @@ function e.calculate(ci)
 		F.echo('ERROR: CI is '..tostring(ci)..' | type: '..type(ci))
 	end
 	e.resetLocalVarTable(e.var)
-	--("&lt;I=G=HOLD&gt;+&lt;I=G=ATTACK&gt;: Use weapon (ready + attack)")
 	return
 end
 
@@ -1343,9 +1344,11 @@ function e.Update()
 
 			m.sqrt=nil
 
-			if not e.var.exception.playerLeftQuestArea then
-				lv.inQuestArea=true
-			end
+			lv.inQuestArea=((not e.var.exception.playerLeftQuestArea and true)or false)
+
+			--if not e.var.exception.playerLeftQuestArea then
+				--lv.inQuestArea=true
+			--end
 
 			l.vars=nil
 		
@@ -1353,7 +1356,7 @@ function e.Update()
 			local ci=0
 			local p=e.index.points
 
-			if night then
+			if lv.night then
 				ci=(((n*p.time.night)*p.weather[lv.weather])+p.light.night)
 				ci=(lv.ability=='night'and(ci+p.material.surface)or ci)
 				ci=(e.var.flashed and(ci+p.light.ambient)or ci)
