@@ -165,9 +165,7 @@ function e:resetLocalVarTable()
 		weather=self.weather,
 		player=self.player,
 		exception={playerVehicleImpact=false,brokeSpecialStance=false,itemCancel=false,playerLeftQuestArea=self.exception.playerLeftQuestArea},
-		keepTime={
-			parasiteStealth=self.keepTime.parasiteStealth
-		},
+		keepTime=self.keepTime,
 		keyLog={},
 		special=self.special,
 		icon=self.icon,
@@ -202,7 +200,7 @@ if not e.var then
 		weather=0,--sunny
 		player={},
 		exception={playerVehicleImpact=false,brokeSpecialStance=false,itemCancel=false,playerLeftQuestArea=true},
-		keepTime={limited=false,battery=false,parasiteStealth=false},
+		keepTime={limited=false,battery=false,parasiteStealth=false,stealthCamo=false},
 		keyLog={action=false,moveAction=false,stance=false},
 		special={truck=false,proneStealth=false},
 		icon={proneStealth=false},
@@ -412,12 +410,12 @@ end
 function e.getItemType(item)
 	local def=e.define.eqp
 	local t={false,false}
-	F.echo('item:'..tostring(item))
+	--F.echo('item:'..tostring(item))
 
 	local assignSubType=function(subTable)
 		for k,_ in pairs(subTable) do
 			for i=1,#subTable[k] do
-				F.echo(tostring(subTable[k][i]))
+				--F.echo(tostring(subTable[k][i]))
 				if (item==subTable[k][i]) then
 					return k
 				end
@@ -430,8 +428,8 @@ function e.getItemType(item)
 		for i=1,#itemTable do
 			if item==itemTable[i] then
 				t[1]=newType
-				F.echo(item..'=='..itemTable[i])
-				F.echo('t[1]='..tostring(t[1]))
+				--F.echo(item..'=='..itemTable[i])
+				--F.echo('t[1]='..tostring(t[1]))
 				t[2]=assignSubType(subTable)
 				return
 			end
@@ -440,8 +438,8 @@ function e.getItemType(item)
 	end
 
 	checkMatch(def.sCamo.all,def.sCamo.subtype,'stealth')
-	F.echo(tostring(t[1]))
-	F.echo(tostring(t[2]))
+	--F.echo(tostring(t[1]))
+	--F.echo(tostring(t[2]))
 	if not t[1] then
 		t={false,false}--for some reason second arg kept returning nil instead of false when doing multi one-liner conditional var assignment in single func; lazy workaround
 		checkMatch(def.cbox.all,def.cbox.subtype.camo,'cbox')
@@ -513,9 +511,20 @@ end
 function e.OnPlayerDamaged(_,attackId)--arg0=playerIndex | arg2=attackerId
   	_=nil
 	e.var.stealthCamo=false
-	e.var.keepTime.parasiteStealth=false
+	local t=e.var.keepTime
+	_={'limited','battery','stealthCamo','parasiteStealth'}
 
-	local t=G.dmg
+	for i=1,#_ do
+		if t[_[i]] then
+			e.var.flags.state[_]=e.def.flags.setDisable
+			e.checkFlags(e.var.flags.state)
+		end
+	end
+
+
+	--e.var.keepTime.parasiteStealth=false
+
+	t=G.dmg
 	t={light={[t.ATK_FlashLight]=true,[t.ATK_FlashLightAttack]=true}}
 
 	e.var.flashed=(t.light[attackId] or false)
@@ -554,12 +563,13 @@ end
 
 function e.OnEquipItem()--nET
 	local l={elapsedTime=F.gameElapsedTime(),flags=e.define.flags.state}
+	local t
 	if (vars.items[vars.currentItemIndex])<=0 then
 		e.var.ride=false
 		e.var.cboxCamo=false
 	end
 	local eqpType,eqpSubtype=e.getItemType(vars.items[vars.currentItemIndex])
-	e.debug.multiEcho({'eqpType',eqpType,'eqpSubtype',eqpSubtype})
+	--e.debug.multiEcho({'eqpType',eqpType,'eqpSubtype',eqpSubtype})
 	local key
 	--[[local slot={
 		[0]=0,--right
@@ -574,7 +584,13 @@ function e.OnEquipItem()--nET
 
 	if e.var.stealthCamo then --previous item was stealth type
 		if e.var.stealthCamo~='parasite' then --only parasite stealth can be used with other items; mechanically it's similar to drugs.
-			e.var.flags.state.stealthCamo=l.flags.setDisable
+			t={'limited','battery'}
+			for i=1,#t do
+				if e.var.keepTime[t[i]] then
+					e.var.flags.state[t[i]]=l.flags.setDisable
+				end
+			end
+			t=nil
 		elseif eqpType=='stealth' then
 			if eqpSubtype=='parasite' then
 				key='stealthCamo'
@@ -586,6 +602,8 @@ function e.OnEquipItem()--nET
 			else
 				e.var.flags.state.stealthCamo=l.flags.setDisable
 			end --parasite abilities stack but a different stealth item will cancel it out
+		else
+			e.var.stealthCamo=false
 		end
 		e.checkFlags(e.var.flags.state)
 		return
@@ -1019,31 +1037,59 @@ e.parts={
 ]]
 
 function e.checkItem(phase)
-	do
-		local t={'phase',phase,'e.var.stealthCamo',e.var.stealthCamo}
-		e.debug.multiEcho(t)
-	end
+	--###|DEBUG|###
+	--[==[
+		do
+			local f=e.var.flags.state
+			local k=e.var.keepTime
+			local d={
+				varSCamo={'e.var.stealthCamo',e.var.stealthCamo},
+				state='e.var.flags.state',
+				flagLimited={'limited',f.limited},
+				flagBattery={'battery',f.battery},
+				flagParasite={'stealthCamo',f.stealthCamo},
+				keepTime='e.var.keepTime',
+				timeLimited={'limited',k.limited},
+				timeBattery={'battery',k.battery},
+				timeParasite={'parasite',k.stealthCamo}
+			}
+			local s
+			f=e.define.flags.state
+			k={'varSCamo','state','flagLimited','flagBattery','flagParasite','keepTime','timeLimited','timeBattery','timeParasite'}
+			for i=1,#k do
+				s=d[k[i]]
+				if type(s)=='string'then
+					F.echo(s)
+				else
+					F.echo(s[1]..'|'..tostring(s[2]))
+				end
+			end
+		end
+	--]==]
+
 	local l={flag=e.define.flags.state,bonus=e.index.points.item}
 	local n=0
 
 	if not e.var.stealthCamo then
 		return n
 	elseif phase==e.define.phase.alert then
-		e.var.flags.state.stealthCamo=flag.setDisable
+		e.var.flags.state.stealthCamo=l.flag.setDisable
 		e.checkFlags(e.var.flags.state)
 		return n
 	end
 
-	if e.var.stealthCamo~='parasite'then
-		coroutine.resume(e.var.keepTime.stealthCamo)
-		n=(((flag.disabled<e.var.flags.state.stealthCamo)and l.bonus.stealthCamo)or n)
-	else
-		if e.var.keepTime.stealthCamo then
-			e.checkFlags(e.var.flags.state)
-			n=(((flag.disabled<e.var.flags.state.stealthCamo)and l.bonus.parasiteCamo)or n)
+	local t={limited='limited',battery='battery',parasite='stealthCamo'}
+	local k=t[e.var.stealthCamo] or false
+
+	if not k then return n end
+
+	if e.var.keepTime[k] then
+		coroutine.resume(e.var.keepTime[k])
+		if l.flag.disabled<e.var.flags.state[k] then
+			n=((k==t.parasite and l.bonus.parasiteCamo)or l.bonus.stealthCamo)
 		end
 	end
-	return n
+	return n or 0
 end
 
 function e.checkCamouflage(camo)
