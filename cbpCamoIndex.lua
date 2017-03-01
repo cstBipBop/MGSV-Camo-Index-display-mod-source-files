@@ -111,7 +111,7 @@ e.define={
 		itemParams={
 			limited={[0]=30,[1]=40,[2]=50},--more like 25,35,50; stopwatch may have been off.
 			battery={[0]=180},
-			parasiteStealth={[0]=30,[1]=60,[2]=90}--actually refers to suit
+			parasiteStealth={30,60,90}--actually refers to suit; for some reason 1-based instead of 0
 		}
 	}
 }
@@ -337,7 +337,9 @@ end
 
 function e.createRoutine(id,key)
 	if id==e.define.eqp.sCamo.subtype.parasiteStealth then
-		id=G.mbDev.EQP_DEV_GROUP_TOOL_330
+		--id=G.mbDev.EQP_DEV_GROUP_TOOL_330
+		id=G.eqp.EQP_SUIT
+		F.echo('parasiteSuit dev:'..tostring(id))
 	end
 	local grade=F.userItemLevel(id)
 	id=nil
@@ -1133,8 +1135,9 @@ function e.checkParts(part)
 end
 
 function e.checkTime(gameTime)
-	gameTime=(gameTime=='night' or false)
-	return gameTime
+	--gameTime=(gameTime=='night' or false)
+	--return gameTime
+	return gameTime=='night' or false
 end
 
 function e.checkWeather(weather)
@@ -1157,8 +1160,9 @@ function e.checkLocation(location)
 end
 
 function e.checkMission(missionCode)--good; need to add other codes; afgh quiet pre/post; mtbs
-	local t=e.define.mission.free
-	return (t[missionCode] or false)
+	--local t=e.define.mission.free
+	--return (t[missionCode] or false)
+	return e.define.mission.free[missionCode] or false
 end
 
 function e.checkGunfire(ride,guardPhase)
