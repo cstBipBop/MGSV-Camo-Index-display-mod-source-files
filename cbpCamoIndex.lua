@@ -109,9 +109,9 @@ e.define={
 		},
 		state={disabled=0,enabled=1,setEnable=2,setDisable=3,increaseDuration=4},
 		itemParams={
-			limited={[0]=30,[1]=40,[2]=50},--more like 25,35,50; stopwatch may have been off.
-			battery={[0]=180},
-			parasiteStealth={30,60,90}--actually refers to suit; for some reason 1-based instead of 0
+			limited={30,40,50},--more like 25,35,50; stopwatch may have been off.
+			battery={180},
+			parasiteStealth={30,60,90}--actually refers to suit
 		}
 	}
 }
@@ -337,11 +337,12 @@ end
 
 function e.createRoutine(id,key)
 	if id==e.define.eqp.sCamo.subtype.parasiteStealth then
-		--id=G.mbDev.EQP_DEV_GROUP_TOOL_330
 		id=G.eqp.EQP_SUIT
-		F.echo('parasiteSuit dev:'..tostring(id))
 	end
-	local grade=F.userItemLevel(id)
+	local grade=F.userItemLevel(id) or 1
+	if type(id)=='table'then
+		F.echo('ERROR|func:e.createRoutine(id,key)|msg:var id must be a number!')
+	end
 	id=nil
 
 	e.var.keepTime[key]=coroutine.create(
@@ -372,7 +373,7 @@ end
 
 function e.changeState(key,flag)--battery,2
 	local l={flagType=e.define.flags.state}
-	local id=e.define.eqp.sCamo.subtype[key]
+	local id=e.define.eqp.sCamo.subtype[key][1]
 
 	if flag==l.flagType.setEnable then
 		e.createRoutine(id,key)--e.define.eqp.sCamo.subtype.battery,battery
