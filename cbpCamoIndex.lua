@@ -8,6 +8,7 @@ local G={
 	def=TppDefine,
 	eqp=TppEquip,
 	ene=TppEnemy,
+	mbDev=TppMbDev,
 	gameObj_tpp=TppGameObject,
 	gameObj_v=GameObject,
 	user=Player,
@@ -87,7 +88,7 @@ e.define={
 			subtype={
 				limited={G.eqp.EQP_IT_InstantStealth},
 				battery={G.eqp.EQP_IT_Stealth},
-				parasite={G.eqp.EQP_IT_ParasiteCamouf}
+				parasiteStealth={G.eqp.EQP_IT_ParasiteCamouf}
 			}
 		}
 	},
@@ -103,14 +104,14 @@ e.define={
 	flags={
 		item={
 			null_low=0,
-			stealth_minIndex=10,limited=10,battery=11,parasite=12,stealth_maxIndex=12,
+			stealth_minIndex=10,limited=10,battery=11,parasiteStealth=12,stealth_maxIndex=12,
 			null_high=20
 		},
 		state={disabled=0,enabled=1,setEnable=2,setDisable=3,increaseDuration=4},
 		itemParams={
-			limited={30,40,50},--more like 25,35,50; stopwatch may have been off.
-			battery={180},
-			stealthCamo={30,60,90}--actually refers to suit
+			limited={[0]=30,[1]=40,[2]=50},--more like 25,35,50; stopwatch may have been off.
+			battery={[0]=180},
+			parasiteStealth={[0]=30,[1]=60,[2]=90}--actually refers to suit
 		}
 	}
 }
@@ -200,11 +201,11 @@ if not e.var then
 		weather=0,--sunny
 		player={},
 		exception={playerVehicleImpact=false,brokeSpecialStance=false,itemCancel=false,playerLeftQuestArea=true},
-		keepTime={limited=false,battery=false,parasiteStealth=false,stealthCamo=false},
+		keepTime={limited=false,battery=false,parasiteStealth=false},
 		keyLog={action=false,moveAction=false,stance=false},
 		special={truck=false,proneStealth=false},
 		icon={proneStealth=false},
-		flags={state={limited=0,battery=0,stealthCamo=0}}
+		flags={state={limited=0,battery=0,parasiteStealth=0}}
 	}
 end
 
@@ -334,15 +335,22 @@ end
 
 --###############Coroutines#############
 
-function e:createRoutine(key)
-	local grade=F.userItemLevel(self)
-	--self=nil
+function e.createRoutine(id,key)
+	if id==e.define.eqp.sCamo.subtype.parasiteStealth then
+		id=G.mbDev.EQP_DEV_GROUP_TOOL_330
+	end
+	local grade=F.userItemLevel(id)
+	id=nil
+
 	e.var.keepTime[key]=coroutine.create(
 		function(item,grade)
+			F.echo(item)
+			F.echo(grade)
 			local flags=e.define.flags
 			local rawTime=F.gameElapsedTime
 			local t=(rawTime()+(flags.itemParams[item][grade]))
 			while true do
+				F.echo('in coroutine')
 				if e.var.flags.state[item]==flags.state.increaseDuration then
 					t=(t+(flags.itemParams[item][grade]))
 					e.var.flags.state[item]=flags.state.enabled
@@ -350,6 +358,7 @@ function e:createRoutine(key)
 				if e.var.exception.itemCancel or (t-rawTime())<=0 then
 					e.var.flags.state[item]=flags.state.setDisable--##CHECK
 					e.changeState(item,e.var.flags.state[item])
+					e.var.stealthCamo=false
 					break
 				end
 				coroutine.yield()
@@ -359,13 +368,12 @@ function e:createRoutine(key)
 	coroutine.resume(e.var.keepTime[key],key,grade)
 end
 
-function e.changeState(key,flag)--item,flag
-	local l={flagType=e.define.flags.state,eqp=e.define.eqp}
-	local t={limited=l.eqp.sCamo.subtype.limited,battery=l.eqp.sCamo.subtype.battery,stealthCamo=l.eqp.sCamo.subtype.parasite}
-	l.eqp=nil
+function e.changeState(key,flag)--battery,2
+	local l={flagType=e.define.flags.state}
+	local id=e.define.eqp.sCamo.subtype[key]
 
 	if flag==l.flagType.setEnable then
-		e.var.keepTime[key]=e.createRoutine(t[key],key)
+		e.createRoutine(id,key)--e.define.eqp.sCamo.subtype.battery,battery
 		e.var.flags.state[key]=l.flagType.enabled
 	elseif flag==l.flagType.setDisable then
 		if e.var.keepTime[key] then
@@ -378,7 +386,7 @@ function e.changeState(key,flag)--item,flag
 	end
 end
 
-function e:checkFlags()--e.var.flags.state={limited=n,battery=n,stealthCamo=n}
+function e:checkFlags()--e.var.flags.state={battery=2}
 	local pairs=pairs
 	local flagType=e.define.flags.state
 	for k,v in pairs(self) do
@@ -388,7 +396,7 @@ function e:checkFlags()--e.var.flags.state={limited=n,battery=n,stealthCamo=n}
 				e.changeState(k,e.var.flags.state[k])
 			end
 		elseif flagType.enabled<v and v<flagType.increaseDuration then
-			e.changeState(k,v)--stealthcamo,flag
+			e.changeState(k,v)--battery,2
 		end
 	end
 end
@@ -512,7 +520,7 @@ function e.OnPlayerDamaged(_,attackId)--arg0=playerIndex | arg2=attackerId
   	_=nil
 	e.var.stealthCamo=false
 	local t=e.var.keepTime
-	_={'limited','battery','stealthCamo','parasiteStealth'}
+	_={'limited','battery','parasiteStealth'}
 
 	for i=1,#_ do
 		if t[_[i]] then
@@ -582,8 +590,8 @@ function e.OnEquipItem()--nET
 		[7]=469--downRight
 	}]]
 
-	if e.var.stealthCamo then --previous item was stealth type
-		if e.var.stealthCamo~='parasite' then --only parasite stealth can be used with other items; mechanically it's similar to drugs.
+	if e.var.stealthCamo then--previous item was stealth type
+		if e.var.stealthCamo~='parasiteStealth' then--only parasite stealth can be used with other items
 			t={'limited','battery'}
 			for i=1,#t do
 				if e.var.keepTime[t[i]] then
@@ -591,25 +599,28 @@ function e.OnEquipItem()--nET
 				end
 			end
 			t=nil
-		elseif eqpType=='stealth' then
-			if eqpSubtype=='parasite' then
-				key='stealthCamo'
-				e.var.flags.state.stealthCamo=((e.var.keepTime[key] and l.flags.increaseDuration) or l.flags.setEnable)
-				if e.var.flags.state.stealthCamo==l.flags.increaseDuration then
-					coroutine.resume(e.var.keepTime[key])
-				end
-				key=nil
-			else
-				e.var.flags.state.stealthCamo=l.flags.setDisable
-			end --parasite abilities stack but a different stealth item will cancel it out
-		else
 			e.var.stealthCamo=false
+		elseif eqpSubtype=='parasiteStealth' then
+			key=eqpSubtype
+			e.var.flags.state[key]=((e.var.keepTime[key] and l.flags.increaseDuration)or l.flags.setEnable)
+			if e.var.flags.state[key]==l.flags.increaseDuration then
+				coroutine.resume(e.var.keepTime[key])
+			end
+			key=nil
+		else
+			t={'limited','battery'}
+			for i=1,#t do
+				if eqpSubtype==t[i] then
+					e.var.flags.state.parasiteStealth=l.flags.setDisable
+				end
+			end
+			t=nil
 		end
 		e.checkFlags(e.var.flags.state)
 		return
 	elseif eqpType=='stealth' then
 		e.var.stealthCamo=eqpSubtype
-		key=((eqpSubtype~='parasite'and eqpSubtype)or'stealthCamo')
+		key=eqpSubtype
 		e.var.flags.state[key]=((e.var.keepTime[key] and l.flags.increaseDuration)or l.flags.setEnable)
 		if e.var.flags.state[key]==l.flags.increaseDuration then
 			coroutine.resume(e.var.keepTime[key])
@@ -617,6 +628,7 @@ function e.OnEquipItem()--nET
 		e.checkFlags(e.var.flags.state)
 		return
 	end
+
 	l=nil
 
 	if eqpType=='cbox' then
@@ -1038,7 +1050,7 @@ e.parts={
 
 function e.checkItem(phase)
 	--###|DEBUG|###
-	--[==[
+	--[]==[
 		do
 			local f=e.var.flags.state
 			local k=e.var.keepTime
@@ -1047,11 +1059,11 @@ function e.checkItem(phase)
 				state='e.var.flags.state',
 				flagLimited={'limited',f.limited},
 				flagBattery={'battery',f.battery},
-				flagParasite={'stealthCamo',f.stealthCamo},
+				flagParasite={'parasite',f.parasiteStealth},
 				keepTime='e.var.keepTime',
 				timeLimited={'limited',k.limited},
 				timeBattery={'battery',k.battery},
-				timeParasite={'parasite',k.stealthCamo}
+				timeParasite={'parasite',k.parasiteStealth}
 			}
 			local s
 			f=e.define.flags.state
@@ -1065,28 +1077,23 @@ function e.checkItem(phase)
 				end
 			end
 		end
-	--]==]
-
+	--[m]m==]
 	local l={flag=e.define.flags.state,bonus=e.index.points.item}
 	local n=0
 
-	if not e.var.stealthCamo then
-		return n
-	elseif phase==e.define.phase.alert then
-		e.var.flags.state.stealthCamo=l.flag.setDisable
+	local k=e.var.stealthCamo or false
+	if not k then return n end
+
+	if phase==e.define.phase.alert then
+		e.var.flags.state[k]=l.flag.setDisable
 		e.checkFlags(e.var.flags.state)
 		return n
 	end
 
-	local t={limited='limited',battery='battery',parasite='stealthCamo'}
-	local k=t[e.var.stealthCamo] or false
-
-	if not k then return n end
-
 	if e.var.keepTime[k] then
 		coroutine.resume(e.var.keepTime[k])
-		if l.flag.disabled<e.var.flags.state[k] then
-			n=((k==t.parasite and l.bonus.parasiteCamo)or l.bonus.stealthCamo)
+		if (l.flag.disabled<e.var.flags.state[k]) then
+			n=((k=='parasiteStealth'and l.bonus.parasiteCamo)or l.bonus.stealthCamo)
 		end
 	end
 	return n or 0
