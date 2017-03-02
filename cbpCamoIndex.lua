@@ -1385,7 +1385,7 @@ function e.Update()
       		}
 
       		lv.ride,lv.speed,lv.stance=e.checkStatus()
-      		F.echo('e.Update()|post e.checkStatus()|lv.ride='..tostring(lv.ride))
+      		--F.echo('e.Update()|post e.checkStatus()|lv.ride='..tostring(lv.ride))
       		e.var.ride=lv.ride
       		lv.item=e.checkItemBonusConflicts(lv.item)
       		lv.gunfire=e.checkGunfire(lv.ride,lv.phase)
