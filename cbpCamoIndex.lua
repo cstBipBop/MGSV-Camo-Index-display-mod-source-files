@@ -727,14 +727,14 @@ function e.checkInitCamoufTable(tablePos)
 			end
 		end
 		returnedTable[materialName]=p
-		m,p,materialName=nil,nil,nil
+		m,p,materialName=nil
 		return returnedTable
 	end
 
 	for i=1,#n do
 		s=getCamoTableValues(t,s,m,n[i])
 	end
-	t,m,n=nil,nil,nil
+	t,m,n=nil
 	return s
 end
 
@@ -1244,7 +1244,7 @@ function e.checkStatus()
 
 	if ride then
 		local func
-		F.echo(ride)
+		--F.echo(ride)
 		if t.stationary[ride] then
 			--F.echo('t.strings.staticStand[ride] | '..tostring(t.strings.staticStand[ride]))
 			--F.echo('t.strings.staticCrouch[ride] | '..tostring(t.strings.staticCrouch[ride]))
@@ -1401,7 +1401,7 @@ function e.Update()
 				local pp=e.var.player.currentPos
 				local x,y,z=(pp[1]-qp[1]),(pp[2]-qp[2]),(pp[3]-qp[3])
 				x=m.sqrt((x*x)+(y*y)+(z*z))
-				y,z=nil,nil
+				y,z=nil
 				x=((m.floor(x*1e3))*1e-3)
 				e.var.exception.playerLeftQuestArea=(ql<x)
 			end
