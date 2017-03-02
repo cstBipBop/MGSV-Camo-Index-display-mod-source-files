@@ -202,7 +202,7 @@ if not e.var then
 		player={},
 		exception={playerVehicleImpact=false,brokeSpecialStance=false,itemCancel=false,playerLeftQuestArea=true},
 		keepTime={limited=false,battery=false,parasiteStealth=false},
-		keyLog={action=false,moveAction=false,stance=false},
+		keyLog={},
 		special={truck=false,proneStealth=false},
 		icon={proneStealth=false},
 		flags={state={limited=0,battery=0,parasiteStealth=0}}
@@ -310,9 +310,10 @@ function e.debug:buttonsOrStatus(check)
 	end
 	self,check=nil
 	local tostring=tostring
+	local e=F.echo
 	for k,v in pairs(t) do
 		if v then
-			F.echo(k..'='..tostring(v))
+			e(k..'='..tostring(v))
 		end
 	end
 	return
@@ -333,6 +334,12 @@ function e.debug:multiEcho()
 	end
 end
 
+function e.debug.errMsg(func,msg)
+	local e=F.echo
+	if not func or not msg then e('ERROR|func:e.debug.errMsg(func,msg)|msg:no arguments');return end
+	e('ERROR|func:'..func..'|msg:'..msg)
+end
+
 --###############Coroutines#############
 
 function e.createRoutine(id,key)
@@ -340,26 +347,26 @@ function e.createRoutine(id,key)
 		id=G.eqp.EQP_SUIT
 	end
 	local grade=F.userItemLevel(id) or 1
-	if type(id)=='table'then
-		F.echo('ERROR|func:e.createRoutine(id,key)|msg:var id must be a number!')
+
+	if type(id)~='number'then
+		e.debug.errMsg('e.createRoutine(id,key)','var id must be a number!')
 	end
+
 	id=nil
 
 	e.var.keepTime[key]=coroutine.create(
 		function(item,grade)
-			F.echo(item)
-			F.echo(grade)
 			local flags=e.define.flags
 			local rawTime=F.gameElapsedTime
 			local t=(rawTime()+(flags.itemParams[item][grade]))
 			while true do
-				F.echo('in coroutine')
+				--F.echo('in coroutine')
 				if e.var.flags.state[item]==flags.state.increaseDuration then
 					t=(t+(flags.itemParams[item][grade]))
 					e.var.flags.state[item]=flags.state.enabled
 				end
 				if e.var.exception.itemCancel or (t-rawTime())<=0 then
-					e.var.flags.state[item]=flags.state.setDisable--##CHECK
+					e.var.flags.state[item]=flags.state.setDisable
 					e.changeState(item,e.var.flags.state[item])
 					e.var.stealthCamo=false
 					break
@@ -368,6 +375,7 @@ function e.createRoutine(id,key)
 			end
 		end
 	)
+
 	coroutine.resume(e.var.keepTime[key],key,grade)
 end
 
@@ -405,28 +413,13 @@ function e:checkFlags()--e.var.flags.state={battery=2}
 end
 --######################################
 
---still need to verify these additions:
-	--e.playerFlashed() -- ATK_AttackFlashlight and ATK_AttackFlashlightAttack
-		--searchlight illumination (-60)
-		--flare illumination (-40)
-		--ambient lightsource illumination (-20)
-	--e.checkEnclosed(guardPhase)
-		--in free roam while in enclosed (ifv or mbt) vehicle outside of combat alert
-	--e.checkCboxType(camo)
-		--get itemID of cbox for overriding fatigue camo when PlayerStatus.CBOX
-	--e.checkItem(guardPhase)
-		--is using parasite ability or stealth camo outside of combat alert
-	--
-
 function e.getItemType(item)
 	local def=e.define.eqp
 	local t={false,false}
-	--F.echo('item:'..tostring(item))
 
 	local assignSubType=function(subTable)
 		for k,_ in pairs(subTable) do
 			for i=1,#subTable[k] do
-				--F.echo(tostring(subTable[k][i]))
 				if (item==subTable[k][i]) then
 					return k
 				end
@@ -439,8 +432,6 @@ function e.getItemType(item)
 		for i=1,#itemTable do
 			if item==itemTable[i] then
 				t[1]=newType
-				--F.echo(item..'=='..itemTable[i])
-				--F.echo('t[1]='..tostring(t[1]))
 				t[2]=assignSubType(subTable)
 				return
 			end
@@ -449,8 +440,6 @@ function e.getItemType(item)
 	end
 
 	checkMatch(def.sCamo.all,def.sCamo.subtype,'stealth')
-	--F.echo(tostring(t[1]))
-	--F.echo(tostring(t[2]))
 	if not t[1] then
 		t={false,false}--for some reason second arg kept returning nil instead of false when doing multi one-liner conditional var assignment in single func; lazy workaround
 		checkMatch(def.cbox.all,def.cbox.subtype.camo,'cbox')
@@ -466,7 +455,7 @@ function e.Messages()
 	    Player={
 			{msg='PlayerDamaged',func=e.OnPlayerDamaged},--function(playerIndex,attackId,attackerId)
 			{msg='OnPlayerMachineGun',func=function()e.var.ride='gimmickMG'end},
-			{msg='OnPlayerSearchlight',func=function()e.var.ride='gimmickSearchlight'end},
+			{msg='OnPlayerSearchLight',func=function()e.var.ride='gimmickSearchlight'end},
 			{msg='OnPlayerMortar',func=function()e.var.ride='gimmickMortar'end},
 			{msg='OnPlayerGatling',func=function()e.var.ride='gimmickAA'end},
 			{msg='OnVehicleDrive',func=e.OnVehicleDrive},
@@ -475,35 +464,23 @@ function e.Messages()
 			{msg='OnPlayerToilet',func=function()e.var.ride='toilet'end},
 			{msg='OnPlayerTrashBox',func=function()e.var.ride='trash'end},
 			--{msg='IconCrawlStealthShown',func=e.OnCrawlStealthShown},
+			{msg='IconFultonShown',func=e.IconFultonShown},
 			{msg='OnEquipItem',func=e.OnEquipItem}
-			--{msg="Enter",sender="innerZone",func=function()F.echo('enter inner')end},
-			--{msg="Exit",sender="innerZone",func=function()F.echo('exit inner')end},
-			--{msg="Enter",sender="outerZone",func=function()F.echo('enter outer')end},
-			--{msg="Exit",sender="outerZone",func=function()F.echo('exit outer')end},
-			--{msg="Enter",sender="hotZone",func=function()F.echo('enter hotzone')end},
-			--{msg="Exit",sender="hotZone",func=function()F.echo('exit hotzone')end},
-			--{msg='QuestIconInDisplay',func=function()F.echo('p_QuestIconInDisplay')end},
-			--{msg='QuestStarted',func=function()F.echo('p_QuestStarted')end}
 		},
 		GameObject={
-			{msg='Carried',func=e.OnCarried},
-			{msg='Damage',func=e.OnDamage},
-			{msg='Observed',func=e.OnObserved},
+			{msg='Carried',func=e.OnCarried}--,
+			--{msg='Damage',func=e.OnDamage},
+			--{msg='Observed',func=e.OnObserved}
 			--{msg='PointLight',func=e.OnPointLight}, --just grphx setting
-			--{msg='ChangePhaseForAnnounce',func=e.OnChangePhase},
-			{msg='VehicleAction',func=e.OnVehicleAction}
-			--{msg='',func=e.On}
-			--{msg='',func=function()F.echo('')end}
 		},
 		UI={
-			{msg="EndFadeOut",sender="FadeOutOnOutOfMissionArea",func=e.OnEndFadeOutOfMissionArea},
-			{msg='QuestAreaAnnounceLog',func=e.OnQuestAreaAnnounceLog},
-			{msg='QuestIconInDisplay',func=function()F.echo('QuestIconInDisplay')end},
-			{msg='QuestStarted',func=function()F.echo('QuestStarted')end}
-		},
-		Trap={
-			{msg='Enter',func=function()F.echo('enter trap')end}
-		}
+			{msg='QuestAreaAnnounceLog',func=e.OnQuestAreaAnnounceLog}--,
+			--{msg='QuestIconInDisplay',func=function()F.echo('QuestIconInDisplay')end},
+			--{msg='QuestStarted',func=function()F.echo('QuestStarted')end}
+		}--,
+		--Trap={
+		--	{msg='Enter',func=function()F.echo('enter trap')end}
+		--}
   	}
 end
 
@@ -520,26 +497,23 @@ function e.OnMessage(sender,messageId,arg0,arg1,arg2,arg3,strLogText)
 end
 
 function e.OnPlayerDamaged(_,attackId)--arg0=playerIndex | arg2=attackerId
-  	_=nil
+  	_={'limited','battery','parasiteStealth'}
 	e.var.stealthCamo=false
 	local t=e.var.keepTime
-	_={'limited','battery','parasiteStealth'}
 
 	for i=1,#_ do
 		if t[_[i]] then
-			e.var.flags.state[_]=e.def.flags.setDisable
+			e.var.flags.state[_[i]]=e.def.flags.setDisable
 			e.checkFlags(e.var.flags.state)
 		end
 	end
-
-
-	--e.var.keepTime.parasiteStealth=false
 
 	t=G.dmg
 	t={light={[t.ATK_FlashLight]=true,[t.ATK_FlashLightAttack]=true}}
 
 	e.var.flashed=(t.light[attackId] or false)
-	e.var.ride=((e.playerStatus('ON_VEHICLE') and 'vehicle') or e.var.ride)--##CHECK
+	t=nil
+	e.var.ride=((e.playerStatus('ON_VEHICLE') and 'vehicle') or e.var.ride)
 	e.var.exception.playerVehicleImpact=((e.var.ride and true) or false)
 end
 
@@ -561,6 +535,16 @@ function e.OnPointLight()
 end
 function e.OnCrawlStealthShown()
 	e.var.icon.proneStealth=true
+end
+
+function e.IconFultonShown()
+	local r=e.var.ride
+	if not r then return end
+	local t={cbox=true,carry=true}
+	if t[r] then
+		return
+	end
+	e.var.ride=false
 end
 
 --[[
@@ -1053,7 +1037,7 @@ e.parts={
 
 function e.checkItem(phase)
 	--###|DEBUG|###
-	--[]==[
+	--[==[
 		do
 			local f=e.var.flags.state
 			local k=e.var.keepTime
@@ -1080,7 +1064,9 @@ function e.checkItem(phase)
 				end
 			end
 		end
-	--[m]m==]
+	--]==]
+	--###|\DEBUG|###
+
 	local l={flag=e.define.flags.state,bonus=e.index.points.item}
 	local n=0
 
@@ -1233,11 +1219,15 @@ end
 function e.checkStatus()
 	local speed='dash'
 	local stance='stand'
-	local ride=e.var.ride
+	local ride=e.var.ride or false
 	local t=e.debugTable.playerStatus
 	local is=e.getAllPlayerStatus(t,e.playerStatus)--bool table
-	ride=((is.NORMAL_ACTION and ride~='carry' and false) or ride)
 
+	if ride~='carry' and is.NORMAL_ACTION then
+		ride=false
+	end
+	--F.echo(tostring(ride))
+	--e.debug.buttonsOrStatus(e.debugTable.playerStatus,'status')
 	t={
 		speed=function(s)if(is.STOP or is.HORSE_IDLE or is.IDLE)then return'idle'elseif(is.WALK or is.HORSE_TROT)then return'walk'elseif(is.RUN or is.HORSE_CANTER)then return'jog'end return s end,
 		stance=function(s)if(is.CRAWL)then return'prone'elseif(is.SQUAT or is.HORSE_HIDE_L or is.HORSE_HIDE_R)then return'crouch'end return s=='stand'and is.FALL and'fall'or s end,
@@ -1250,20 +1240,23 @@ function e.checkStatus()
 	speed=t.speed(speed)
 	stance=t.stance(stance)
 	speed=t.stanceSpeedMax(speed,stance)
-	t.speed,t.stance,t.stanceSpeedMax=nil
+	t.speed,t.stance,t.stanceSpeedMax=false
 
 	if ride then
 		local func
+		F.echo(ride)
 		if t.stationary[ride] then
+			--F.echo('t.strings.staticStand[ride] | '..tostring(t.strings.staticStand[ride]))
+			--F.echo('t.strings.staticCrouch[ride] | '..tostring(t.strings.staticCrouch[ride]))
 			if t.strings.staticStand[ride] then
 				func=function(r,sp,_)return r,sp,'stand'end
-			elseif t.string.staticCrouch[ride] then
+			elseif t.strings.staticCrouch[ride] then
 				func=function(r,_,_)return r,'idle','crouch'end
 			end
 		elseif ride=='toilet' then
 			func=function(r,sp,st)return is.STOP and is.STAND and is.SUBJECT and is.PARTS_ACTIVE and r,sp,'stand'or r,sp,st,true end
 		elseif t.trash[ride] then
-			func=function(_,sp,st)st='crouch';return is.TRASH_BOX and'trash_closed',sp,st or is.TRASH_BOX_HALF_OPEN and'trash_open',sp,st or false,sp,st,true end
+			func=function(_,sp,st)st='crouch';if is.TRASH_BOX then return'trash_closed',sp,st elseif is.TRASH_BOX_HALF_OPEN then return 'trash_open',sp,st end; return false,sp,st end
 		elseif ride=='carry' then
 			func=function(r,sp,st)return is.CARRY and r,sp,st or false,sp,st end
 		elseif ride=='cbox' then
@@ -1297,6 +1290,18 @@ function e:largestCamoBonus(location)
 	return n
 end
 
+function e.checkItemBonusConflicts(bonus)
+	--F.echo('ride='..tostring(e.var.ride))
+	if bonus~=0 and ride then
+		local t={cbox=true,vehicle=true,horse=true,dwalker=true}
+		if t[e.var.ride] then
+			bonus=0
+		end
+		t=nil
+	end
+	return bonus
+end
+
 function e.calculate(ci)
 	if ci then
 		local n=e.index.sight.camo
@@ -1319,6 +1324,8 @@ function e.Update()
 		e.var.keyLog.fire=true
 		e.var.exception.brokeSpecialStance=true
 		e.var.icon.proneStealth=false
+	else
+		e.var.keyLog.fire=false
 	end
 
 	--[[
@@ -1349,11 +1356,6 @@ function e.Update()
 			e.buttonHold=F.gameElapsedTime()
 			local l={vars=vars,def=e.define}
 			local m={floor=floor,sqrt=sqrt}
-			--local vars=vars
-			--local def=e.define
-			--local t={}
-		--[[#######TEMP CODE v REMOVE!!!#############]]	
-		--[[#######TEMP CODE ^ REMOVE!!!#############]]	
 
 			e.var.guardPhase=l.vars.playerPhase--int
 			e.var.mission=l.vars.missionCode--int
@@ -1361,6 +1363,8 @@ function e.Update()
 			e.var.weather=l.vars.weather--int
 			e.var.location=l.vars.locationCode--int
 			e.var.player.currentPos={l.vars.playerPosX,l.vars.playerPosY,l.vars.playerPosZ}--int float
+
+			--F.echo('e.Update()|pre lv table|e.var.ride='..tostring(e.var.ride))
 
       		local lv={
       			freeroam=e.checkMission(l.vars.missionCode),--bool
@@ -1381,7 +1385,9 @@ function e.Update()
       		}
 
       		lv.ride,lv.speed,lv.stance=e.checkStatus()
+      		F.echo('e.Update()|post e.checkStatus()|lv.ride='..tostring(lv.ride))
       		e.var.ride=lv.ride
+      		lv.item=e.checkItemBonusConflicts(lv.item)
       		lv.gunfire=e.checkGunfire(lv.ride,lv.phase)
       		lv.vType=(lv.ride=='vehicle'and e.checkEnclosed()or false)
       		lv.camo,lv.ability=(lv.ride=='cbox'and e.var.cboxCamo)
@@ -1404,10 +1410,6 @@ function e.Update()
 
 			lv.inQuestArea=((not e.var.exception.playerLeftQuestArea and true)or false)
 
-			--if not e.var.exception.playerLeftQuestArea then
-				--lv.inQuestArea=true
-			--end
-
 			l.vars=nil
 		
 			local n=e.index.sight.camo.discovery--standard max; 840
@@ -1422,16 +1424,11 @@ function e.Update()
 				ci=((m.floor(n*0.239))*p.weather[lv.weather])--~24% of standard max by weather bonus percent
 			end
 
-			--m.floor=nil
 			m=nil
 
 			ci=((ci+lv.item)+p.stance[lv.stance])
 			ci=((lv.gunfire and (ci+p.gun.flash))or ci)
-			n=e.index.sight.camo
-
-			--ci=((ci+item)+p.stance[stance])
-			--ci=((gunfire and (ci+p.gun.flash))or ci)
-			--n=e.index.sight.camo
+			n=e.index.sight.camo	
 
 			if lv.ride then
 				if lv.ride=='helicopter'then
@@ -1488,7 +1485,7 @@ function e.Update()
 				elseif lv.ride=='toilet'or lv.ride=='trash_closed'then
 					e.calculate(n.friendly)
 					return
-				elseif ride=='trash_open'then
+				elseif lv.ride=='trash_open'then
 					e.calculate(n.indis)
 					return
 				end
@@ -1531,7 +1528,7 @@ end
 	NEW:
 		- Cbox type now checked. Camo bonus will no longer be given when using water-resistant or smoke cboxes. Cbox camo bonus will be given by location like with fatigue camo bonus.
 		- Vehicle and stationary weapon gunfire checks added. Does not factor in actual discharge, only if the fire button is pressed and vehicle has a weapon.
-		- Stealth camo now factored into total camo bonus (parasite camo might be a little iffy).
+		- Stealth camo now factored into total camo bonus.
 		- Enclosed vehicle bonus will now take into account vehicle type, player vehicle damage, and vehicle fire.
 		- Bonus for carrying an enemy fixed; now only given if the carried AI is alive and an enemy.
 		- When wearing Splitter fatigues an index bonus will be added when operating stationary weapons (AA gun, mortar, searchlight, etc.).
@@ -1542,19 +1539,17 @@ end
 		- Patch: freeroam enclosed vehicle bonus now being given properly (was being given when using jeep or truck).
 
 	To do:
-		- Check that stealth camo checks work for all types.
-		- Parasite camo suit grade needs proper testing for duration by grade.
-		- Bug: freeroam vehicle enclosed bonus no longer given when not wearing Splitter. Returns CI matching on-foot stand, jog
 		- Bug: CI for cbox dash and cbox jog same; not sure if this was intentional
-		- Bug: Horse idle overrides dwalker ride check in e.Update()
-		- Bug: MG fire penalty doesn't work
-		- Bug: if an equipped cbox is destroyed by rain, the ride state stays the same.
+
+		- coroutine for tracking keyLog.fire
+		- "speedometer" function to gauge speed for vehicles
+		- while ON_TOILET log zoom button press (makes noise that attracts guards)
 
 	Limitations:
-		- Camo surface bonus being given if material type exists at location (AFGH,MAFR,MTBS,CYPR) rather than by catching player collision with material. Need to experiment with getting info from Capture Cage functions.
+		- Camo surface bonus being given if material type exists at location (AFGH,MAFR,MTBS,CYPR) rather than by catching player collision with material.
 		- Player illumination not checked. Only the +10 stacked bonus for nighttime ci.
 		- No status check for prone stealth mode. Might be possible by keeping track of action button press
 		- No status check for vehicle speed. PlayerStatus always returns STOP. Could implement by keeping track of player distance travelled.
-		- Hiding in truck cabin is not checked. PlayerStatus always STAND in vehicles. Might be possible by tracking stance button press.
+		- Hiding in truck cabin is not checked. PlayerStatus always STAND in vehicles.
 ]]
 return e
